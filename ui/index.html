@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Internship Pipeline</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand"><span class="logo">↗</span><div>Pipeline<small>INTERNSHIP TRACKER</small></div></div>
+  <p class="nav-label">WORKSPACE</p>
+  <nav aria-label="Workspace">
+    <button data-view="dashboard" class="active"><span>▦</span> Dashboard</button>
+    <button data-view="compare"><span>◫</span> Compare roles</button>
+    <button data-view="assessments"><span>◷</span> Online assessments</button>
+    <button data-view="calendar"><span>▦</span> Calendar</button>
+    <button data-view="templates"><span>▤</span> Templates</button>
+    <button data-view="inbox"><span>✉</span> Email import</button>
+  </nav>
+  <div class="profile"><span class="avatar">RC</span><div>Ryan Chung<small>Private workspace</small></div></div>
+</aside>
+<main>
+  <header class="top"><div><span>Workspace</span> <b>/</b> <strong id="crumb">Dashboard</strong></div><span class="private">● &nbsp; PRIVATE</span></header>
+  <div id="page" class="page"></div>
+</main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="editor"><form id="entryForm"><div class="dialog-head"><div><div class="eyebrow">APPLICATION RECORD</div><h2 id="editTitle"></h2></div><button type="button" class="iconbtn" data-action="close" aria-label="Close">×</button></div><div id="fields" class="formgrid"></div><div class="dialog-foot"><button type="button" id="remove" class="danger" data-action="delete">Delete application</button><span></span><button type="button" data-action="close" class="secondary">Cancel</button><button class="primary" type="submit">Save application</button></div><p id="formError" role="alert"></p></form></dialog>
+</body>
+</html>
