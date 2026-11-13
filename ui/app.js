@@ -1,16 +1,23 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-const statuses = ["Interested","Applied","Interviewing","Offer","Rejected","Withdrawn"];
+const themeKey = "internship-pipeline-theme";
+try {
+  if (localStorage.getItem(themeKey) === "dark") document.documentElement.dataset.theme = "dark";
+} catch {
+  // The theme can still be switched when browser storage is unavailable.
+}
+const statuses = ["Interested","Applied","Interviewing","Offer","Accepted","Declined","Rejected","Withdrawn"];
 const stages = ["None","Recruiter call","Technical interview","Hiring-manager interview","Final interview","Awaiting decision","Final decision"];
 const tracks = ["Web","Full-stack","Backend","C++ / Systems","Other"];
 const modes = ["Remote","Hybrid","On-site","Unspecified"];
-const titles = {dashboard:"Dashboard",compare:"Compare roles",assessments:"Online assessments",calendar:"Calendar",templates:"Templates",inbox:"Email import"};
+const titles = {dashboard:"Dashboard",compare:"Compare roles",assessments:"Online assessments",calendar:"Calendar",templates:"Templates",settings:"Profile & settings"};
 const filters = {q:"",status:"",stage:"",track:"",mode:"",sort:"fit"};
+let activeImport = null;
 let view = "dashboard", entries = [], editing, loading = true, loadError = "", toastTimer, saving = false;
 const selected = new Set();
 const compareFilters = {q:"",mode:"",sort:"company"};
 const compareSorts = {company:"Company A–Z",location:"Location A–Z",mode:"Work arrangement",fit:"Best fit",deadline:"Application deadline",recent:"Recently updated"};
-const closed = (r) => ["Rejected","Withdrawn"].includes(r.status);
+const closed = (r) => ["Accepted","Declined","Rejected","Withdrawn"].includes(r.status);
 const dateToday = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Detroit",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const plusWeek = () => {const d = new Date(dateToday()+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+7);return d.toISOString().slice(0,10);};
 const fmt = (d) => d ? new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"UTC"}).format(new Date(d+"T12:00:00Z")) : "—";
@@ -63,18 +70,83 @@ function render() {
     if(b.dataset.view===view) b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");
   });
   const alert = loadError?'<div class="banner">'+e(loadError)+' '+button("Retry","retry")+'</div>':"";
-  const pages={dashboard,compare,assessments,calendar,templates,inbox};
+  const pages={dashboard,compare,assessments,calendar,templates,settings};
   $("page").innerHTML=alert+pages[view]();
   if($("resultCount")) $("resultCount").textContent=rowsForView().length+" of "+entries.length+" roles";
   if(view==="templates") draft();
+  if(view==="settings" && window.gmailSettingsReady) window.gmailSettingsReady();
 }
 const filterMenu=(key,label,list)=>'<select data-filter="'+key+'" aria-label="'+label+'"><option value="">'+label+'</option>'+opts(list,filters[key])+'</select>';
+function applicationFlow() {
+  const heading='<section class="card padded application-flow"><h2>Application flow</h2>';
+  if(loading||loadError) return heading+'<p class="muted">'+(loading?"Loading applications…":"Application data is unavailable.")+'</p></section>';
+
+  const nodes={
+    applied:{label:"Applied",x:22,color:"#7083a7"},
+    oa:{label:"OA",x:146,color:"#9a7bd2"},
+    phone:{label:"Phone screen",x:270,color:"#3a9aaf"},
+    interviews:{label:"Interviews",x:394,color:"#577cf0"},
+    offer:{label:"Offer",x:518,color:"#bf962d"},
+    rejected:{label:"Rejected",x:518,color:"#db7952"},
+    accepted:{label:"Accepted",x:650,color:"#439d73"},
+    declined:{label:"Declined offer",x:650,color:"#c96886"}
+  };
+  for(const node of Object.values(nodes)) Object.assign(node,{count:0,incoming:0,outgoing:0});
+  const links=new Map();
+  for(const entry of entries) {
+    if(entry.status==="Interested") continue;
+    const route=["applied"];
+    if(entry.oa || entry.oaDue || entry.oaState) route.push("oa");
+    if(entry.stage==="Recruiter call") route.push("phone");
+    if(["Technical interview","Hiring-manager interview","Final interview","Awaiting decision"].includes(entry.stage)
+      || (entry.status==="Interviewing" && entry.stage!=="Recruiter call")) route.push("interviews");
+    if(["Offer","Accepted","Declined"].includes(entry.status)) route.push("offer");
+    if(entry.status==="Rejected") route.push("rejected");
+    if(entry.status==="Accepted") route.push("accepted");
+    if(entry.status==="Declined") route.push("declined");
+    for(let i=0;i<route.length;i++) {
+      nodes[route[i]].count++;
+      if(i===0) continue;
+      const from=route[i-1],to=route[i],key=from+"-"+to;
+      if(!links.has(key)) links.set(key,{from,to,count:0});
+      links.get(key).count++;
+    }
+  }
+  if(!nodes.applied.count) return heading+'<p class="muted">Add an application to see its path through the pipeline.</p></section>';
+
+  const scale=132/nodes.applied.count;
+  for(const node of Object.values(nodes)) {
+    node.height=node.count*scale;
+    node.y=220-node.height/2;
+  }
+  nodes.rejected.y=24;
+  nodes.accepted.y=166;
+  nodes.declined.y=nodes.accepted.y+Math.max(32,nodes.accepted.height)+30;
+
+  const bands=Array.from(links.values()).sort((a,b)=>nodes[a.to].y-nodes[b.to].y||nodes[a.from].x-nodes[b.from].x);
+  const ribbons=bands.map(({from,to,count})=>{
+    const source=nodes[from],target=nodes[to],width=count*scale;
+    const x1=source.x+10,x2=target.x,middle=(x1+x2)/2;
+    const y1=source.y+source.outgoing,y2=target.y+target.incoming;
+    source.outgoing+=width;
+    target.incoming+=width;
+    return `<path d="M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2} L ${x2} ${y2+width} C ${middle} ${y2+width}, ${middle} ${y1+width}, ${x1} ${y1+width} Z" fill="${target.color}"><title>${source.label} to ${target.label} · ${count}</title></path>`;
+  }).join("");
+  const bars=Object.values(nodes).map(node=>
+    `<g><rect x="${node.x}" y="${node.y}" width="10" height="${Math.max(2,node.height)}" rx="2" fill="${node.color}"/><text x="${node.x}" y="${node.y-7}"><tspan class="flow-count">${node.count}</tspan> ${node.label}</text></g>`
+  ).join("");
+  return heading+'<p class="muted">Band widths show application counts. Paths use saved stages and outcomes.</p>'
+    +'<div class="flow-chart"><svg viewBox="0 0 805 372" role="img" aria-labelledby="flowTitle flowDescription"><title id="flowTitle">Application flow</title><desc id="flowDescription">'
+    +Object.values(nodes).map(node=>node.label+" "+node.count).join(", ")
+    +'</desc><g class="flow-ribbons">'+ribbons+'</g>'+bars+'</svg></div></section>';
+}
 function dashboard() {
   const metrics=[["▤","Tracked roles",entries.length,"All application records","all"],["◈","Interviewing",entries.filter(r=>r.status==="Interviewing").length,"Active interview loops","interview"],["✓","Offers",entries.filter(r=>r.status==="Offer").length,"Offers received","offer"],["◷","Open assessments",entries.filter(pendingOA).length,"Online assessments to complete","assessments"]];
   const next=entries.filter(pendingOA).sort((a,b)=>byDate(a,b,"oaDue")).slice(0,3);
   const deadlines=entries.filter(r=>!closed(r)&&r.deadline>=dateToday()&&r.deadline<=plusWeek()).sort((a,b)=>byDate(a,b,"deadline")).slice(0,4);
   return '<section class="hero"><div><div class="eyebrow">RECRUITING WORKSPACE</div><h1>Internship pipeline</h1><p>Track applications, compare roles, and stay on top of the next step.</p></div>'+button("＋ Add application","new","primary")+'</section>'
   +'<div class="metrics">'+metrics.map(([icon,name,count,detail,action])=>'<button class="metric" data-action="'+action+'"><i aria-hidden="true">'+icon+'</i><span>'+name+'</span><strong>'+count+'</strong><span>'+detail+'</span></button>').join("")+'</div>'
+  +applicationFlow()
   +'<div class="columns"><section class="card"><div class="card-head"><div><h2>Applications</h2><p id="resultCount"></p></div>'+button('Compare <span id="compareCount">'+selected.size+'</span>',"compare")+'</div><div class="toolbar"><input data-filter="q" aria-label="Search applications" placeholder="Search company, role, tech…" value="'+e(filters.q)+'">'+filterMenu("status","All statuses",statuses)+filterMenu("stage","All stages",stages)+filterMenu("track","All tracks",tracks)+filterMenu("mode","All locations",modes)+'<select data-filter="sort" aria-label="Sort applications">'+Object.entries({fit:"Best fit",recent:"Recently updated",deadline:"Deadline",company:"Company A–Z"}).map(([k,v])=>'<option value="'+k+'"'+(k===filters.sort?' selected':'')+'>'+v+'</option>').join("")+'</select></div><div id="results" class="tablewrap">'+applicationTable()+'</div></section>'
   +'<div class="rail"><section class="card"><div class="card-head"><h2>Online assessments</h2></div><div class="rail-body">'+(next.length?next.map(r=>'<div class="rail-row"><strong>'+e(r.company)+'</strong><span>'+fmt(r.oaDue)+'</span></div>').join(""):'<p class="muted">Add an assessment to a role to see it here.</p>')+'<div class="tags">'+button("View assessments →","assessments")+'</div></div></section>'
   +'<section class="card"><div class="card-head"><h2>Deadlines · next 7 days</h2></div><div class="rail-body">'+(deadlines.length?deadlines.map(r=>'<div class="rail-row"><strong>'+e(r.company)+'</strong><span>'+fmt(r.deadline)+'</span></div>').join(""):'<p class="muted">No upcoming application deadlines.</p>')+'</div></section>'
@@ -88,7 +160,7 @@ function applicationTable() {
   const body = rows.map(r=>'<tr><td><input type="checkbox" data-pick="'+e(r.id)+'" aria-label="Compare '+e(r.company+' '+r.role)+'" '+(selected.has(r.id)?'checked':'')+'></td><td><div class="entity">'+e(r.company)+'</div><div class="sub">'+e(r.role)+'</div></td><td>'+badge(r.status)+'<div class="sub">'+e(r.stage==="None"?"":r.stage)+'</div></td><td>'+e([r.location,r.mode==="Unspecified"?"":r.mode].filter(Boolean).join(" · ")||"—")+'<div class="sub">'+e(r.tech)+'</div></td><td>'+fmt(r.deadline)+'</td><td>'+e(r.contact||r.email||"—")+'</td><td>'+button("Edit","edit","secondary",r.id)+'</td></tr>').join("");
   if(rows.length) return table+'<tbody>'+body+'</tbody></table>';
   if(entries.length) return table+'</table>'+empty("⌕","No matching applications","Clear the filters to see all your roles.",button("Clear filters","all"));
-  return table+'</table>'+empty("▤","Start with your first application","Add a role to track its progress, or review an application update from email.",button("Add application","new","primary")+" "+button("Review email","inbox"));
+  return table+'</table>'+empty("▤","Start with your first application","Add a role to track its progress, or sync Gmail from your profile.",button("Add application","new","primary")+" "+button("Sync Gmail","settings"));
 }
 const roleLocation = r => [r.location,r.mode==="Unspecified"?"":r.mode].filter(Boolean).join(" · ");
 function compareResults() {
@@ -171,35 +243,32 @@ function draft() {
   };
   $("draft").value=drafts[$("templateKind").value].replaceAll(";",".");
 }
-function inbox() {
-  return section("APPLICATION UPDATES","Email import","Review a confirmation, interview invitation, or decision from your inbox.")
-    +'<div class="banner"><strong>Gmail import</strong><p>ChatGPT can import updates using your connected Gmail. To review a message directly here, paste it below.</p></div><section class="card padded"><form id="importForm" class="importform"><label>Match a saved role<select name="match">'+roleOptions("Create a new application")+'</select></label><label>Email subject<input name="subject" required maxlength="500" placeholder="Example: Invitation to a technical interview"></label><label>Email excerpt<textarea name="excerpt" maxlength="4000" placeholder="Paste the relevant lines from the email"></textarea></label><div><button class="primary">Review update</button></div></form></section>';
+let accountInfo = {name:"",email:"",loaded:false,error:""};
+async function loadAccountInfo() {
+  try {
+    const response=await fetch("/api/profile");
+    if(!response.ok) throw new Error("Account information is temporarily unavailable.");
+    accountInfo={...await response.json(),loaded:true,error:""};
+    if(accountInfo.name) {
+      $("profileName").textContent=accountInfo.name;
+      $("profileAvatar").textContent=accountInfo.name.split(/\s+/).map(part=>part[0]).slice(0,2).join("").toUpperCase();
+    }
+  } catch(err) {accountInfo={...accountInfo,loaded:true,error:err.message};}
+  if(view==="settings") render();
 }
-function readEmail(form) {
-  const f=new FormData(form), subject=f.get("subject").trim(), excerpt=f.get("excerpt").trim(), text=subject+"\n"+excerpt;
-  const original=entries.find(x=>x.id===f.get("match"));
-  const decision=/moving forward with other|unfortunately|will not be moving|not (?:be )?(?:selected|moving forward)|regret to inform|\brejection\b|pursue other candidates/i.test(text);
-  const offer=/offer letter|pleased to offer|extend (?:you )?an offer/i.test(text);
-  const interview=/\binterview\b|recruiter (?:call|screen)|phone screen|hiring manager call|schedule (?:a|an|your) (?:call|conversation)/i.test(text);
-  const applied=/application (?:received|submitted|confirmation)|thank you for (?:applying|your application)|received your application|successfully applied/i.test(text);
-  let status=original?.status||"Interested", stage=original?.stage||"None";
-  if(decision||offer) {status=decision?"Rejected":"Offer";stage="Final decision";}
-  else if(interview) {
-    status="Interviewing";
-    if(/final (?:round|interview)/i.test(text)) stage="Final interview";
-    else if(/hiring[- ]manager/i.test(text)) stage="Hiring-manager interview";
-    else if(/technical|coding/i.test(text)) stage="Technical interview";
-    else if(/recruiter|phone screen|introductory/i.test(text)) stage="Recruiter call";
-  } else if(applied&&(!original||status==="Interested")) status="Applied";
-  const notes=[original?.notes,"Email subject: "+subject].filter(Boolean).join("\n\n");
-  openEditor({...original,status,stage,notes},"Review email update");
-  $("formError").textContent="Verify the application and proposed status before saving. Only the subject is added to notes.";
+function settings() {
+  return section("YOUR WORKSPACE","Profile & settings","Account details and connected services.")
+    +'<section class="card padded theme-settings"><h2>Appearance</h2><label class="theme-option"><input id="darkMode" type="checkbox" role="switch" '+(document.documentElement.dataset.theme==="dark"?"checked":"")+'> Dark mode</label></section>'
+    +'<div class="split"><section class="card padded"><h2>Account information</h2><dl class="account-details"><dt>Name</dt><dd>'+e(accountInfo.name||(accountInfo.loaded?"Unavailable in this session":"Loading…"))+'</dd><dt>Email</dt><dd>'+e(accountInfo.email||(accountInfo.loaded?"Unavailable in this session":"Loading…"))+'</dd><dt>Sign-in</dt><dd>ChatGPT</dd></dl>'
+    +(accountInfo.error?'<p class="error">'+e(accountInfo.error)+'</p>':"")
+    +'<h3>Password & security</h3><p class="muted">Manage your password through your ChatGPT account settings. If you sign in with Google or Apple, manage your password with that provider.</p><div class="gmail-controls"><a class="secondary" href="https://chatgpt.com/" target="_blank" rel="noopener">Open ChatGPT account</a><a class="secondary" href="https://help.openai.com/en/articles/4936828-resetting-or-changing-your-chatgpt-password" target="_blank" rel="noopener">Change password instructions</a></div></section><section id="gmailPanel" class="card padded"><p class="muted">Loading Gmail settings…</p></section></div>';
 }
 function openEditor(record={},title) {
+  activeImport = null;
   editing={...record,id:record.id||crypto.randomUUID()};
   $("editTitle").textContent=title||(record.id?"Edit application":"Add application");
   $("formError").textContent="";
-  $("remove").hidden=!record.id;
+  $("remove").hidden=!entries.some(r=>r.id===record.id);
   const input=(key,label,type="text",extra="")=>'<label>'+label+'<input name="'+key+'" type="'+type+'" value="'+e(record[key]||"")+'" '+extra+'></label>';
   const select=(key,label,list)=>'<label>'+label+'<select name="'+key+'">'+opts(list,record[key]||list[0])+'</select></label>';
   $("fields").innerHTML=input("company","Company","text","required maxlength=150")+input("role","Role","text","required maxlength=200")
@@ -217,6 +286,7 @@ function openEditor(record={},title) {
 }
 function navigate(next) {view=next;render();window.scrollTo(0,0);}
 function syncTable() {
+
   if($("results")) $("results").innerHTML=applicationTable();
   if($("resultCount")) $("resultCount").textContent=rowsForView().length+" of "+entries.length+" roles";
   if($("compareCount")) $("compareCount").textContent=selected.size;
@@ -232,6 +302,12 @@ document.addEventListener("input",event=>{
   }
 });
 document.addEventListener("change",event=>{
+  if(event.target.id==="darkMode") {
+    const theme=event.target.checked?"dark":"light";
+    document.documentElement.dataset.theme=theme;
+    try {localStorage.setItem(themeKey,theme);} catch {}
+    return;
+  }
   const pick=event.target.dataset.pick;
   if(pick) {
     if(event.target.checked&&selected.size>=4) {event.target.checked=false;notify("Choose up to four roles.");return;}
@@ -269,7 +345,7 @@ document.addEventListener("click",async event=>{
   if(action==="edit"&&record) return openEditor(record);
   if(action==="close"&&!saving) return $("editor").close();
   if(action==="retry") return load();
-  if(["compare","assessments","calendar","inbox"].includes(action)) return navigate(action);
+  if(["compare","assessments","calendar","settings"].includes(action)) return navigate(action);
   if(["prevMonth","thisMonth","nextMonth"].includes(action)) {
     const date=new Date(calendarMonth+"-01T12:00:00Z");
     date.setUTCMonth(date.getUTCMonth()+(action==="prevMonth"?-1:1));
@@ -295,14 +371,14 @@ document.addEventListener("click",async event=>{
 });
 document.addEventListener("submit",async event=>{
   event.preventDefault();
-  if(event.target.id==="importForm") return readEmail(event.target);
   if(event.target.id!=="entryForm"||saving) return;
   const submit=event.submitter;
   const data=Object.fromEntries(new FormData(event.target));
   saving=true;submit.disabled=true;$("formError").textContent="";
-  try {await save({...editing,...data,production:data.production||""});$("editor").close();if(view==="inbox")navigate("dashboard");else render();notify("Application saved.");}
+  try {await save({...editing,...data,production:data.production||"",...(activeImport?{importId:activeImport,expectedUpdated:editing.updated||""}:{})});$("editor").close();if(activeImport) {activeImport=null;navigate("dashboard");}else render();notify("Application saved.");}
   catch(err){$("formError").textContent=err.message;}
   finally{saving=false;submit.disabled=false;}
 });
 $("editor").addEventListener("cancel",event=>{if(saving)event.preventDefault();});
 load();
+loadAccountInfo();

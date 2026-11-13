@@ -1,6 +1,6 @@
 const headers = {"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"};
 const json = (data, status=200) => Response.json(data,{status,headers});
-const statuses = ["Interested","Applied","Interviewing","Offer","Rejected","Withdrawn"];
+const statuses = ["Interested","Applied","Interviewing","Offer","Accepted","Declined","Rejected","Withdrawn"];
 const stages = ["None","Recruiter call","Technical interview","Hiring-manager interview","Final interview","Awaiting decision","Final decision"];
 const limits = {company:150,role:200,status:30,stage:40,contact:150,email:250,deadline:10,followup:10,location:150,mode:30,tech:500,notes:6000,track:40,production:4,done:4,oa:150,oaDue:10,oaState:30,interviewAt:16,otherDate:10,otherLabel:150,sourceId:40};
 export default {
@@ -8,9 +8,18 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     if (Object.hasOwn(assets,path) && request.method === "GET") {
-      const types = {"/":"text/html","/style.css":"text/css","/app.js":"text/javascript"};
-      return new Response(assets[path],{headers:{...headers,"Content-Type":types[path]+"; charset=utf-8","Content-Security-Policy":"default-src 'self'; frame-ancestors 'self' https://chatgpt.com; base-uri 'none'"}});
+      const types = {"/":"text/html","/style.css":"text/css","/app.js":"text/javascript","/gmail.js":"text/javascript","/email-rules.js":"text/javascript"};
+      return new Response(assets[path],{headers:{...headers,"Content-Type":types[path]+"; charset=utf-8","Content-Security-Policy":"default-src 'self'; script-src 'self' https://accounts.google.com/gsi/; connect-src 'self' https://gmail.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com; style-src 'self' https://accounts.google.com/gsi/style; frame-ancestors 'self' https://chatgpt.com; base-uri 'none'"}});
     }
+    if(path==="/api/profile" && request.method==="GET") {
+      const email=request.headers.get("oai-authenticated-user-email")||"";
+      let name=request.headers.get("oai-authenticated-user-full-name")||"";
+      if(request.headers.get("oai-authenticated-user-full-name-encoding")==="percent-encoded-utf-8") {
+        try {name=decodeURIComponent(name);} catch {name="";}
+      }
+      return json({name,email,provider:"ChatGPT"});
+    }
+    if (path.startsWith("/api/imports")) return handleImports(request,env);
     if (path !== "/api/applications") return json({error:"Page not found"},404);
     try {
       if (request.method === "GET") {
@@ -41,6 +50,7 @@ export default {
       if (!data.company || !data.role || !statuses.includes(data.status) || !stages.includes(data.stage)) return json({error:"Check the company, role, status, and stage."},400);
       for (const key of ["deadline","followup","oaDue","otherDate"]) if(data[key] && !/^\d{4}-\d{2}-\d{2}$/.test(data[key])) return json({error:"Invalid date."},400);
       if(data.interviewAt && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(data.interviewAt)) return json({error:"Invalid interview date."},400);
+      if (body.importId) return applyImport(env.DB,body,data);
       const now = new Date().toISOString();
       await env.DB.prepare("INSERT INTO applications (id,data,updated_at) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at").bind(body.id,JSON.stringify(data),now).run();
       return json({...data,id:body.id,updated:now});

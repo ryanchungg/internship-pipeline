@@ -2,3 +2,56 @@
 @media(max-width:1140px){.columns{grid-template-columns:minmax(0,1fr)}.rail{grid-template-columns:1fr 1fr}}@media(max-width:760px){.shell{display:block}.sidebar{position:static;height:auto;padding:12px 13px}.brand{font-size:18px}.brand .logo{width:32px;height:32px}.nav-label,.profile{display:none}.sidebar nav{display:flex;overflow:auto;margin-top:10px}.sidebar nav button{white-space:nowrap;padding:7px 8px;gap:4px;font-size:11px}.top{height:44px;padding:0 14px}.page{padding:14px}.hero{padding:21px 15px;min-height:155px;align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 14px}.metric{padding:10px}.rail,.split{grid-template-columns:1fr}.dialog-foot{flex-wrap:wrap}.section-head{align-items:flex-start}.formgrid input,.formgrid select{min-width:0}}
 .monthgrid{min-width:580px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}.weekday{padding:9px;color:var(--muted);background:#f6f8fc;font-size:11px;font-weight:750}.day{min-height:79px;border-top:1px solid var(--line);border-right:1px solid var(--line);padding:6px;display:flex;flex-direction:column;gap:4px;font-size:12px}.day:nth-child(7n){border-right:0}.day.blank{background:#f6f8fc}.day.today{background:#eff3ff}.event{border:0;border-radius:5px;text-align:left;background:#e6edff;color:#24489d;padding:4px;font-size:10px;overflow-wrap:anywhere}.event.oa{background:#fff1d6;color:#735009}.event.interview{background:#f0e8ff;color:#5c3699}.agenda{margin-top:15px}
 .compare-results{max-height:245px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}.compare-option{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(95px,30%);align-items:center;gap:9px;padding:9px 12px;font-size:13px;cursor:pointer}.compare-option+.compare-option{border-top:1px solid var(--line)}.compare-option:hover,.compare-option:has(input:checked){background:#f1f5ff}.compare-option .sub{margin:0}.compare-table th button{margin-top:6px;padding:4px 8px}.assessment-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+.gmail-controls{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin:13px 0}.gmail-controls label,.gmail-message label{display:grid;gap:5px;font-size:12px}.gmail-controls input,.gmail-message select{border:1px solid var(--line);border-radius:7px;padding:8px;background:white;max-width:100%}.gmail-message{border-top:1px solid var(--line);padding:16px 0}.gmail-message label{margin-top:12px}.email-excerpt{white-space:pre-wrap;overflow-wrap:anywhere;max-height:170px;overflow:auto;font-size:12px;line-height:1.6;margin:9px 0;padding:10px;background:#f5f7fb;border-radius:6px}.gmail-setting{min-height:0;width:100%;margin:8px 0}details{margin:12px 0}summary{cursor:pointer;font-size:13px;font-weight:700}
+.profile-button{width:100%;text-align:left;border:0;border-top:1px solid #2b3956;background:transparent;color:inherit;font:inherit;cursor:pointer;min-height:64px}.profile-button:hover,.profile-button[aria-current="page"]{background:#263960;border-radius:8px}.profile-button>span:last-child{margin-left:auto;color:#b9c9ed}.profile-button small{font-size:11px}.account-details{display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,1.6fr);gap:12px;font-size:13px;padding:13px 0}.account-details dt{color:var(--muted)}.account-details dd{margin:0;overflow-wrap:anywhere}.gmail-controls a{text-decoration:none;white-space:normal}.review-target{display:grid;gap:8px;font-size:13px;margin:18px 0}.review-target select{max-width:100%;padding:9px;border:1px solid var(--line);border-radius:8px}@media(max-width:760px){.sidebar .profile-button{display:flex;margin-top:8px;padding-top:10px;min-height:45px}.profile-button .avatar{width:28px;height:28px}}
+
+.theme-settings { margin-bottom: 16px; }
+.theme-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; cursor: pointer; font-size: 14px; }
+.theme-option input { accent-color: var(--blue); }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e8edf7;
+  background: #0d1422;
+  --line: #32425c;
+  --muted: #acbad1;
+  --blue: #4265e8;
+  --navy: #101a2d;
+  --surface: #172236;
+  --inset: #101a2b;
+  --hover: #263752;
+}
+[data-theme="dark"] .top,
+[data-theme="dark"] .card,
+[data-theme="dark"] .metric,
+[data-theme="dark"] dialog { background: var(--surface); }
+[data-theme="dark"] :is(.top strong, .entity) { color: #edf2fc; }
+[data-theme="dark"] :is(.eyebrow, .page a:not(.secondary), dialog a) { color: #a9bfff; }
+[data-theme="dark"] :is(.secondary, .iconbtn) { background: var(--surface); color: #dce7fa; border-color: var(--line); }
+[data-theme="dark"] :is(.secondary, .iconbtn):hover,
+[data-theme="dark"] .compare-option:hover,
+[data-theme="dark"] .compare-option:has(input:checked) { background: var(--hover); }
+[data-theme="dark"] :is(input:not([type="checkbox"]), select, textarea) {
+  background: var(--inset);
+  color: #edf2fc;
+  border-color: var(--line);
+}
+[data-theme="dark"] ::placeholder { color: var(--muted); opacity: 1; }
+[data-theme="dark"] :is(th, .weekday, .day.blank, .email-excerpt) { background: var(--inset); color: var(--muted); }
+[data-theme="dark"] .day.today { background: var(--hover); }
+[data-theme="dark"] .compare-table td:first-child { color: var(--muted); }
+[data-theme="dark"] :is(.pill, .pill.applied, .event, .tags span, .metric i, .mark) { background: #24365a; color: #bed0ff; }
+[data-theme="dark"] :is(.pill.interviewing, .event.interview, .metric:nth-child(2) i) { background: #392d52; color: #e0c6ff; }
+[data-theme="dark"] :is(.pill.offer, .private, .metric:nth-child(3) i) { background: #183c34; color: #a0e8cb; border-color: #346155; }
+[data-theme="dark"] :is(.event.oa, .banner, .metric:nth-child(4) i) { background: #443419; color: #ffe0a2; border-color: #74592b; }
+[data-theme="dark"] :is(.pill.rejected, .danger) { background: #482633; color: #ffc1d0; }
+[data-theme="dark"] :is(.error, #formError) { color: #ffb4c5; }
+
+.application-flow { margin-bottom: 16px; }
+.flow-chart { overflow-x: auto; margin-top: 14px; }
+.flow-chart svg { display: block; width: 100%; min-width: 650px; max-height: 370px; }
+.flow-chart text { fill: currentColor; font-size: 13px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+.flow-count { font-weight: 750; }
+.flow-ribbons { opacity: .44; }
+[data-theme="dark"] .flow-chart text { stroke: var(--surface); }
+[data-theme="dark"] .flow-ribbons { opacity: .64; }
